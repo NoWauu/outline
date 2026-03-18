@@ -92,6 +92,7 @@ export default function useDictionary() {
       removeLink: t("Remove link"),
       searchOrPasteLink: `${t("Search or paste a link")}…`,
       strikethrough: t("Strikethrough"),
+      underline: t("Underline"),
       strong: t("Bold"),
       subheading: t("Subheading"),
       sortAsc: t("Sort ascending"),

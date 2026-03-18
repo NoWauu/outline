@@ -81,6 +81,17 @@ export const presetColors: PresetColor[] = [
   { hex: "#3CBEFC", name: "Neon" },
 ];
 
+/** Shared preset colors for text decorations: text color, underline color, strikethrough color. */
+export const presetDecorationColors: PresetColor[] = [
+  { hex: "#E03E3E", name: "Red" },
+  { hex: "#D97706", name: "Orange" },
+  { hex: "#29893B", name: "Green" },
+  { hex: "#1A6FD8", name: "Blue" },
+  { hex: "#7C3AED", name: "Purple" },
+  { hex: "#0D9488", name: "Teal" },
+];
+
+
 export const hexToRgba = (hex: string): RgbaColor => {
   if (hex[0] === "#") {
     hex = hex.substring(1);

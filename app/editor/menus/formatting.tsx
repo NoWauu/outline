@@ -25,9 +25,14 @@ import {
 import { v4 as uuidv4 } from "uuid";
 import CellBackgroundColorPicker from "../components/CellBackgroundColorPicker";
 import HighlightColorPicker from "../components/HighlightColorPicker";
+import UnderlineColorPicker from "../components/UnderlineColorPicker";
+import StrikethroughColorPicker from "../components/StrikethroughColorPicker";
+import UnderlineIcon from "~/components/Icons/UnderlineIcon";
 import type { EditorState } from "prosemirror-state";
 
 import { getDocumentHighlightColors } from "@shared/editor/queries/getDocumentHighlightColors";
+import { getDocumentStrikethroughColors } from "@shared/editor/queries/getDocumentStrikethroughColors";
+import { getDocumentUnderlineColors } from "@shared/editor/queries/getDocumentUnderlineColors";
 import { getMarksBetween } from "@shared/editor/queries/getMarksBetween";
 import { isInCode } from "@shared/editor/queries/isInCode";
 import { isInList } from "@shared/editor/queries/isInList";
@@ -52,6 +57,8 @@ import {
 import { CellSelection } from "prosemirror-tables";
 import TableCell from "@shared/editor/nodes/TableCell";
 import Highlight from "@shared/editor/marks/Highlight";
+import Strikethrough from "@shared/editor/marks/Strikethrough";
+import Underline from "@shared/editor/marks/Underline";
 import { DottedCircleIcon } from "~/components/Icons/DottedCircleIcon";
 
 export default function formattingMenuItems(
@@ -74,11 +81,23 @@ export default function formattingMenuItems(
     state
   ).find(({ mark }) => mark.type === state.schema.marks.highlight);
 
+  const underlineMark = getMarksBetween(
+    state.selection.from,
+    state.selection.to,
+    state
+  ).find(({ mark }) => mark.type === state.schema.marks.underline);
+
+  const strikethroughMark = getMarksBetween(
+    state.selection.from,
+    state.selection.to,
+    state
+  ).find(({ mark }) => mark.type === state.schema.marks.strikethrough);
+
   const cellSelectionHasBackground = isTableCell
     ? hasNodeAttrMarkCellSelection(
-        state.selection as CellSelection,
-        "background"
-      )
+      state.selection as CellSelection,
+      "background"
+    )
     : false;
 
   const selectedCellsColorSet = getColorSetForSelectedCells(state.selection);
@@ -112,12 +131,185 @@ export default function formattingMenuItems(
       visible: !isCodeBlock && (!isMobile || !isEmpty),
     },
     {
-      name: "strikethrough",
       tooltip: dictionary.strikethrough,
       shortcut: `${metaDisplay}+D`,
-      icon: <StrikethroughIcon />,
-      active: isMarkActive(schema.marks.strikethrough),
+      icon: strikethroughMark ? (
+        <CircleIcon color={strikethroughMark.mark.attrs.color || "currentColor"} />
+      ) : (
+        <StrikethroughIcon />
+      ),
+      active: () => !!strikethroughMark,
       visible: !isCodeBlock && (!isMobile || !isEmpty),
+      children: (): MenuItem[] => {
+        const documentStrikethroughColors = getDocumentStrikethroughColors(state);
+        const currentStrikethroughColor = strikethroughMark?.mark.attrs.color;
+        const nonPresetDocumentColors = documentStrikethroughColors.filter(
+          (color: string) =>
+            !Strikethrough.isPresetColor(color) &&
+            color !== currentStrikethroughColor
+        );
+
+        return [
+          ...(strikethroughMark
+            ? [
+              {
+                name: "strikethrough",
+                label: dictionary.none,
+                icon: <DottedCircleIcon retainColor color="transparent" />,
+                active: () => false,
+                attrs: { color: strikethroughMark.mark.attrs.color },
+              },
+            ]
+            : []),
+          ...Strikethrough.presetColors.map((preset) => ({
+            name: "strikethrough",
+            label: preset.name,
+            icon: <CircleIcon retainColor color={preset.hex} />,
+            active: isMarkActive(schema.marks.strikethrough, {
+              color: preset.hex,
+            }),
+            attrs: { color: preset.hex },
+          })),
+          ...(strikethroughMark &&
+            strikethroughMark.mark.attrs.color &&
+            !Strikethrough.isPresetColor(strikethroughMark.mark.attrs.color)
+            ? [
+              {
+                name: "strikethrough",
+                label: strikethroughMark.mark.attrs.color,
+                icon: (
+                  <CircleIcon
+                    retainColor
+                    color={strikethroughMark.mark.attrs.color}
+                  />
+                ),
+                active: isMarkActive(schema.marks.strikethrough, {
+                  color: strikethroughMark.mark.attrs.color,
+                }),
+                attrs: { color: strikethroughMark.mark.attrs.color },
+              },
+            ]
+            : []),
+          ...nonPresetDocumentColors.map((color: string) => ({
+            name: "strikethrough",
+            label: color,
+            icon: <CircleIcon retainColor color={color} />,
+            active: () => currentStrikethroughColor === color,
+            attrs: { color },
+          })),
+          {
+            icon: <CircleIcon retainColor color="rainbow" />,
+            label: "Custom",
+            children: [
+              {
+                content: (
+                  <StrikethroughColorPicker
+                    activeColor={
+                      strikethroughMark?.mark.attrs.color ||
+                      Strikethrough.presetColors[0].hex
+                    }
+                  />
+                ),
+                preventCloseCondition: () =>
+                  !!document.activeElement?.matches(
+                    ".ProseMirror.ProseMirror-focused"
+                  ),
+              },
+            ],
+          },
+        ];
+      },
+    },
+    {
+      tooltip: dictionary.underline,
+      shortcut: `${metaDisplay}+U`,
+      icon: underlineMark ? (
+        <UnderlineIcon
+          color={underlineMark.mark.attrs.color || "currentColor"}
+        />
+      ) : (
+        <UnderlineIcon />
+      ),
+      active: () => !!underlineMark,
+      visible: !isCodeBlock && (!isMobile || !isEmpty),
+      children: (): MenuItem[] => {
+        const documentUnderlineColors = getDocumentUnderlineColors(state);
+        const currentUnderlineColor = underlineMark?.mark.attrs.color;
+        const nonPresetDocumentColors = documentUnderlineColors.filter(
+          (color: string) =>
+            !Underline.isPresetColor(color) && color !== currentUnderlineColor
+        );
+
+        return [
+          ...(underlineMark
+            ? [
+              {
+                name: "underline",
+                label: dictionary.none,
+                icon: <DottedCircleIcon retainColor color="transparent" />,
+                active: () => false,
+                attrs: { color: underlineMark.mark.attrs.color },
+              },
+            ]
+            : []),
+          ...Underline.presetColors.map((preset) => ({
+            name: "underline",
+            label: preset.name,
+            icon: <CircleIcon retainColor color={preset.hex} />,
+            active: isMarkActive(schema.marks.underline, {
+              color: preset.hex,
+            }),
+            attrs: { color: preset.hex },
+          })),
+          ...(underlineMark &&
+            underlineMark.mark.attrs.color &&
+            !Underline.isPresetColor(underlineMark.mark.attrs.color)
+            ? [
+              {
+                name: "underline",
+                label: underlineMark.mark.attrs.color,
+                icon: (
+                  <CircleIcon
+                    retainColor
+                    color={underlineMark.mark.attrs.color}
+                  />
+                ),
+                active: isMarkActive(schema.marks.underline, {
+                  color: underlineMark.mark.attrs.color,
+                }),
+                attrs: { color: underlineMark.mark.attrs.color },
+              },
+            ]
+            : []),
+          ...nonPresetDocumentColors.map((color: string) => ({
+            name: "underline",
+            label: color,
+            icon: <CircleIcon retainColor color={color} />,
+            active: () => currentUnderlineColor === color,
+            attrs: { color },
+          })),
+          {
+            icon: <CircleIcon retainColor color="rainbow" />,
+            label: "Custom",
+            children: [
+              {
+                content: (
+                  <UnderlineColorPicker
+                    activeColor={
+                      underlineMark?.mark.attrs.color ||
+                      Underline.presetColors[0].hex
+                    }
+                  />
+                ),
+                preventCloseCondition: () =>
+                  !!document.activeElement?.matches(
+                    ".ProseMirror.ProseMirror-focused"
+                  ),
+              },
+            ],
+          },
+        ];
+      },
     },
     {
       tooltip: dictionary.background,
@@ -165,21 +357,21 @@ export default function formattingMenuItems(
             attrs: { color: preset.hex },
           })),
           ...(selectedCellsColorSet.size === 1 &&
-          !TableCell.isPresetColor(selectedCellsColorSet.values().next().value)
+            !TableCell.isPresetColor(selectedCellsColorSet.values().next().value)
             ? [
-                {
-                  name: "toggleCellSelectionBackgroundAndCollapseSelection",
-                  label: selectedCellsColorSet.values().next().value,
-                  icon: (
-                    <CircleIcon
-                      retainColor
-                      color={selectedCellsColorSet.values().next().value}
-                    />
-                  ),
-                  active: () => true,
-                  attrs: { color: selectedCellsColorSet.values().next().value },
-                },
-              ]
+              {
+                name: "toggleCellSelectionBackgroundAndCollapseSelection",
+                label: selectedCellsColorSet.values().next().value,
+                icon: (
+                  <CircleIcon
+                    retainColor
+                    color={selectedCellsColorSet.values().next().value}
+                  />
+                ),
+                active: () => true,
+                attrs: { color: selectedCellsColorSet.values().next().value },
+              },
+            ]
             : []),
           // Add all other document table background colors
           ...nonPresetDocumentColors.map((color: string) => ({
@@ -240,14 +432,14 @@ export default function formattingMenuItems(
         return [
           ...(highlight
             ? [
-                {
-                  name: "highlight",
-                  label: dictionary.none,
-                  icon: <DottedCircleIcon retainColor color="transparent" />,
-                  active: () => false,
-                  attrs: { color: highlight.mark.attrs.color },
-                },
-              ]
+              {
+                name: "highlight",
+                label: dictionary.none,
+                icon: <DottedCircleIcon retainColor color="transparent" />,
+                active: () => false,
+                attrs: { color: highlight.mark.attrs.color },
+              },
+            ]
             : []),
           ...Highlight.presetColors.map((preset) => ({
             name: "highlight",
@@ -257,24 +449,24 @@ export default function formattingMenuItems(
             attrs: { color: preset.hex },
           })),
           ...(highlight &&
-          highlight.mark.attrs.color &&
-          !Highlight.isPresetColor(highlight.mark.attrs.color)
+            highlight.mark.attrs.color &&
+            !Highlight.isPresetColor(highlight.mark.attrs.color)
             ? [
-                {
-                  name: "highlight",
-                  label: highlight.mark.attrs.color,
-                  icon: (
-                    <CircleIcon
-                      retainColor
-                      color={highlight.mark.attrs.color}
-                    />
-                  ),
-                  active: isMarkActive(schema.marks.highlight, {
-                    color: highlight.mark.attrs.color,
-                  }),
-                  attrs: { color: highlight.mark.attrs.color },
-                },
-              ]
+              {
+                name: "highlight",
+                label: highlight.mark.attrs.color,
+                icon: (
+                  <CircleIcon
+                    retainColor
+                    color={highlight.mark.attrs.color}
+                  />
+                ),
+                active: isMarkActive(schema.marks.highlight, {
+                  color: highlight.mark.attrs.color,
+                }),
+                attrs: { color: highlight.mark.attrs.color },
+              },
+            ]
             : []),
           // Add all other document highlight colors
           ...nonPresetDocumentColors.map((color: string) => ({
